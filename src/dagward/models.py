@@ -54,3 +54,14 @@ class ValidationResult:
     @property
     def valid(self) -> bool:
         return not self.diagnostics
+
+
+@dataclass(frozen=True)
+class ImpactResult:
+    failed_task: str
+    impacted_tasks: tuple[str, ...] = ()
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+    @property
+    def valid(self) -> bool:
+        return not self.diagnostics
