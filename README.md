@@ -11,10 +11,9 @@ scope.
 ## Development status
 
 The `check` command validates workflow structure, task dependencies, and directed
-cycles. Remaining increments:
-
-1. Transitive downstream analysis via `dagward impact PATH --fail TASK_ID`.
-2. Bundled synthetic examples and final packaging checks.
+cycles. The `impact` command identifies transitive downstream tasks potentially
+blocked by a chosen failed task. Bundled synthetic examples and final packaging
+checks remain.
 
 ## Workflow format
 
@@ -67,10 +66,40 @@ tasks in that group. Self-dependencies are reported separately. Cycle analysis
 runs once task IDs are unique and prerequisite references exist; fix any such
 errors and rerun to check for cycles. Diagnostic ordering is deterministic.
 
+## Analyze failure impact
+
+Using the same `workflow.yaml`, choose an existing task ID:
+
+```sh
+uv run dagward impact workflow.yaml --fail extract
+```
+
+```text
+Failed task: 'extract'
+Potentially blocked downstream tasks (dependency-only model): 2
+  'report'
+  'transform'
+```
+
+The command first validates the entire workflow as a DAG. It then lists all
+transitive downstream dependents once, sorted by ID. The failed task, its
+ancestors, and unrelated tasks are excluded. Task IDs must match exactly,
+including case and whitespace.
+
+A leaf or isolated task succeeds with an explicit message that no downstream
+tasks are potentially blocked. An unknown failed task produces an input error.
+Invalid workflows produce validation diagnostics instead of a partial impact
+report.
+
+This analysis describes potential blocking under a dependency-only model. It does
+not model retries, fallback paths, or conditional execution.
+
+Both commands use these exit codes:
+
 | Exit code | Meaning |
 | --- | --- |
-| `0` | The workflow is valid. |
-| `1` | The file could not be read, parsed, or validated. |
+| `0` | The command completed successfully. |
+| `1` | The file could not be read, parsed, or validated, or the failed task is unknown. |
 | `2` | CLI usage error, such as a missing argument or unknown option. |
 
 ## Local development
