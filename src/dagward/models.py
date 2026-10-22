@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Annotated
 
 from pydantic import (
@@ -37,3 +38,19 @@ class Workflow(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
     tasks: list[Task]
+
+
+@dataclass(frozen=True)
+class Diagnostic:
+    code: str
+    message: str
+    task_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ValidationResult:
+    diagnostics: tuple[Diagnostic, ...] = ()
+
+    @property
+    def valid(self) -> bool:
+        return not self.diagnostics
