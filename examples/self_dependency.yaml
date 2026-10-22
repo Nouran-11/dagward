@@ -1,0 +1,3 @@
+tasks:
+  - id: loop
+    depends_on: [loop]

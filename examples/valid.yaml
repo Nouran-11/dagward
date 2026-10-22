@@ -1,0 +1,9 @@
+tasks:
+  - id: extract
+  - id: transform
+    depends_on: [extract]
+  - id: quality_check
+    depends_on: [extract]
+  - id: report
+    depends_on: [transform, quality_check]
+  - id: housekeeping

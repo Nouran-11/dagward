@@ -12,8 +12,39 @@ scope.
 
 The `check` command validates workflow structure, task dependencies, and directed
 cycles. The `impact` command identifies transitive downstream tasks potentially
-blocked by a chosen failed task. Bundled synthetic examples and final packaging
-checks remain.
+blocked by a chosen failed task. Synthetic examples are included for both
+commands. The package is currently a development build (`0.1.0.dev0`).
+
+## Try the bundled examples
+
+From the project directory, install the development environment and analyze the
+synthetic branching workflow:
+
+```sh
+uv sync --locked
+uv run dagward check examples/valid.yaml
+uv run dagward impact examples/valid.yaml --fail extract
+```
+
+The valid example contains five tasks. A failure of `extract` potentially blocks
+`quality_check`, `report`, and `transform`, in that sorted order. The independent
+`housekeeping` task is unaffected under the dependency-only model.
+
+Each invalid example isolates one dependency problem. These commands return exit
+code `1`:
+
+| Example | Diagnostic |
+| --- | --- |
+| `examples/duplicate_ids.yaml` | `duplicate_id` |
+| `examples/missing_reference.yaml` | `missing_reference` |
+| `examples/self_dependency.yaml` | `self_dependency` |
+| `examples/cycle.yaml` | `cycle` |
+
+For example:
+
+```sh
+uv run dagward check examples/cycle.yaml
+```
 
 ## Workflow format
 
@@ -118,3 +149,13 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+Build an installable wheel and source archive locally:
+
+```sh
+uv build
+```
+
+Artifacts are written to `dist/`. The source archive includes the examples and
+tests. After installing the wheel or source archive into a Python environment,
+use `dagward check PATH` and `dagward impact PATH --fail TASK_ID` directly.

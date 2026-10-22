@@ -1,0 +1,3 @@
+tasks:
+  - id: report
+    depends_on: [transform]

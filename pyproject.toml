@@ -32,6 +32,7 @@ packages = ["src/dagward"]
 only-include = [
     "src/dagward",
     "tests",
+    "examples",
     "README.md",
     "pyproject.toml",
     "uv.lock",

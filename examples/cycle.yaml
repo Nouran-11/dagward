@@ -1,0 +1,7 @@
+tasks:
+  - id: extract
+    depends_on: [report]
+  - id: transform
+    depends_on: [extract]
+  - id: report
+    depends_on: [transform]
