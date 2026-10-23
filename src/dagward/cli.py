@@ -10,8 +10,11 @@ from dagward.models import Diagnostic, Workflow
 from dagward.validation import validate_workflow
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
-console = Console(markup=False, highlight=False, emoji=False)
-error_console = Console(stderr=True, markup=False, highlight=False, emoji=False)
+# Keep paths and task IDs intact when output is captured or copied.
+console = Console(markup=False, highlight=False, emoji=False, soft_wrap=True)
+error_console = Console(
+    stderr=True, markup=False, highlight=False, emoji=False, soft_wrap=True
+)
 
 
 @app.callback()

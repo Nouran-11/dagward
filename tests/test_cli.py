@@ -1,6 +1,10 @@
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+from rich.ansi import AnsiDecoder
 from typer.testing import CliRunner
 
 from dagward.cli import app
@@ -122,13 +126,100 @@ def test_check_task_identifiers_are_rendered_literally(tmp_path: Path) -> None:
     assert missing_id in result.stderr
 
 
-def test_impact_help() -> None:
-    result = runner.invoke(app, ["impact", "--help"])
+@pytest.mark.parametrize("command", ["check", "impact"])
+@pytest.mark.parametrize(
+    "content",
+    [None, "tasks: [", "tasks:\n  - id: report\n    depends_on: [missing]\n"],
+)
+def test_error_paths_are_preserved_in_narrow_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str, content: str | None
+) -> None:
+    monkeypatch.setenv("COLUMNS", "24")
+    path = tmp_path / ("[red]workflow-" + "long-name-" * 8 + ".yaml")
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    arguments = [command, str(path)]
+    if command == "impact":
+        arguments.extend(["--fail", "report"])
+
+    result = runner.invoke(app, arguments)
+
+    assert result.exit_code == 1
+    assert repr(str(path)) in result.stderr
+    assert result.stdout == ""
+
+
+def test_check_success_path_is_preserved_in_narrow_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COLUMNS", "24")
+    path = tmp_path / ("[red]workflow-" + "long-name-" * 8 + ".yaml")
+    path.write_text("tasks: []\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["check", str(path)])
 
     assert result.exit_code == 0
-    assert "PATH" in result.output
-    assert "--fail" in result.output
-    assert "downstream" in result.output.lower()
+    assert repr(str(path)) in result.stdout
+    assert "0 tasks" in result.stdout
+    assert result.stderr == ""
+
+
+def test_check_identifiers_are_preserved_in_narrow_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COLUMNS", "24")
+    path = tmp_path / "workflow.yaml"
+    missing_id = "[red]" + "missing-task-" * 8 + "[/red]:smile:"
+    path.write_text(
+        f"tasks:\n  - id: report\n    depends_on: ['{missing_id}']\n", encoding="utf-8"
+    )
+
+    result = runner.invoke(app, ["check", str(path)])
+
+    assert result.exit_code == 1
+    assert repr(missing_id) in result.stderr
+    assert result.stdout == ""
+
+
+def test_impact_help() -> None:
+    result = runner.invoke(app, ["impact", "--help"])
+    visible_output = "\n".join(
+        line.plain for line in AnsiDecoder().decode(result.output)
+    )
+
+    assert result.exit_code == 0
+    assert "PATH" in visible_output
+    assert "--fail" in visible_output
+    assert "downstream" in visible_output.lower()
+
+
+def test_impact_help_with_github_actions_color() -> None:
+    environment = os.environ | {"GITHUB_ACTIONS": "true", "TERM": "xterm-256color"}
+    environment.pop("NO_COLOR", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from dagward.cli import app; app()",
+            "impact",
+            "--help",
+        ],
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+        timeout=10,
+    )
+    visible_output = "\n".join(
+        line.plain for line in AnsiDecoder().decode(result.stdout)
+    )
+
+    assert result.returncode == 0
+    assert "\x1b[" in result.stdout
+    assert "PATH" in visible_output
+    assert "--fail" in visible_output
+    assert "downstream" in visible_output.lower()
+    assert result.stderr == ""
 
 
 @pytest.mark.parametrize(
@@ -289,6 +380,30 @@ def test_impact_task_identifiers_preserve_literal_text_and_whitespace(
     assert repr(failed_id) in result.stdout
     assert repr(dependent_id) in result.stdout
     assert "  'Extract'" not in result.stdout
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize("has_dependents", [False, True])
+def test_impact_identifiers_are_preserved_in_narrow_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, has_dependents: bool
+) -> None:
+    monkeypatch.setenv("COLUMNS", "24")
+    path = tmp_path / "workflow.yaml"
+    failed_id = " [red]" + "failed-task-" * 8 + "[/red]:smile: "
+    dependent_id = " [green]" + "downstream-task-" * 8 + "[/green]:smile: "
+    content = f"tasks:\n  - id: '{failed_id}'\n"
+    if has_dependents:
+        content += f"  - id: '{dependent_id}'\n    depends_on: ['{failed_id}']\n"
+    path.write_text(content, encoding="utf-8")
+
+    result = runner.invoke(app, ["impact", str(path), "--fail", failed_id])
+
+    assert result.exit_code == 0
+    assert f"Failed task: {failed_id!r}" in result.stdout
+    if has_dependents:
+        assert f"  {dependent_id!r}" in result.stdout.splitlines()
+    else:
+        assert "No downstream tasks are potentially blocked" in result.stdout
     assert result.stderr == ""
 
 
