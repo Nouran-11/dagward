@@ -133,6 +133,56 @@ Both commands use these exit codes:
 | `1` | The file could not be read, parsed, or validated, or the failed task is unknown. |
 | `2` | CLI usage error, such as a missing argument or unknown option. |
 
+## Architecture
+
+The implementation lives in `src/dagward/`. Both commands load and structurally
+validate the workflow before analysis. Solid arrows show calls and results;
+dotted arrows show shared data types.
+
+```mermaid
+flowchart TD
+    U["Terminal commands<br/>dagward check · dagward impact"] --> CLI
+
+    subgraph Interface["Command interface"]
+        CLI["cli.py · Typer<br/>Read arguments and coordinate analysis"]
+        OUT["cli.py · Rich<br/>Print results and set exit codes"]
+    end
+
+    CLI -->|Load workflow| LOAD
+    YAML["Workflow YAML file"] --> LOAD
+
+    subgraph Input["Input and shared data"]
+        LOAD["loader.py · PyYAML<br/>Read file and safely parse YAML"]
+        MODEL["models.py · Pydantic<br/>Task and Workflow schemas<br/>Diagnostic and result types"]
+        LOAD -->|Validate structure| MODEL
+    end
+
+    CLI -->|check| VALID
+    CLI -->|impact| IMPACT
+
+    subgraph Analysis["Workflow analysis"]
+        VALID["validation.py<br/>Duplicate IDs · missing references<br/>Self-dependencies · cycles"]
+        IMPACT["impact.py<br/>Validate failed task<br/>Find transitive downstream tasks"]
+        GRAPH["graph.py · NetworkX<br/>Build dependency graph<br/>Find directed cycles"]
+
+        IMPACT -->|Validate workflow first| VALID
+        VALID -->|Check cycles| GRAPH
+        IMPACT -->|Build graph for downstream analysis| GRAPH
+    end
+
+    MODEL -.->|Shared data types| VALID
+    MODEL -.->|Shared data types| IMPACT
+
+    VALID -->|Validation result| OUT
+    IMPACT -->|Impact result| OUT
+
+    OUT --> RESULT["Valid workflow, diagnostics,<br/>or potentially blocked tasks"]
+```
+
+Within the workflow graph, edges mean **prerequisite -> dependent**. Impact
+analysis reuses workflow validation, then uses NetworkX to find transitive
+downstream tasks. Workflows are analyzed without executing tasks.
+
 ## Local development
 
 Use Python 3.12 and [uv](https://docs.astral.sh/uv/).
