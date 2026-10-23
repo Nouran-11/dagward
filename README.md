@@ -159,3 +159,9 @@ uv build
 Artifacts are written to `dist/`. The source archive includes the examples and
 tests. After installing the wheel or source archive into a Python environment,
 use `dagward check PATH` and `dagward impact PATH --fail TASK_ID` directly.
+
+## Automated checks
+
+GitHub Actions runs the test suite, Ruff lint and formatting checks, and a package
+build on pushes to `main` and on pull requests. The workflow uses Python 3.12 and
+installs dependencies from `uv.lock` with `uv sync --locked`.
